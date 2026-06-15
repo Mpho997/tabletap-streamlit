@@ -1,5 +1,4 @@
 import streamlit as st
-from datetime import datetime
 
 st.set_page_config(page_title="TableTap", layout="centered")
 
@@ -10,27 +9,31 @@ st.title("🍽️ TableTap")
 params = st.query_params
 table_number = params.get("table", None)
 
+
 def insert_request(table_number, request_type):
     sql = """
         INSERT INTO RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         (TABLE_NUMBER, REQUEST_TYPE, STATUS, CREATED_AT)
-        VALUES (?, ?, 'WAITING', CURRENT_TIMESTAMP())
+        VALUES (%s, %s, 'WAITING', CURRENT_TIMESTAMP())
     """
-    with conn.raw_connection().cursor() as cur:
+
+    with conn.raw_connection.cursor() as cur:
         cur.execute(sql, (str(table_number), request_type))
+
 
 def update_request(request_id):
     sql = """
         UPDATE RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         SET STATUS = 'COMPLETED'
-        WHERE REQUEST_ID = ?
+        WHERE REQUEST_ID = %s
     """
-    with conn.raw_connection().cursor() as cur:
+
+    with conn.raw_connection.cursor() as cur:
         cur.execute(sql, (request_id,))
+
 
 if table_number:
     st.subheader(f"Table {table_number}")
-
     st.write("How can we assist you?")
 
     if st.button("🔔 Call Waiter"):
