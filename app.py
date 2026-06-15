@@ -10,6 +10,14 @@ params = st.query_params
 table_number = params.get("table", None)
 
 
+def run_sql(sql):
+    cur = conn.raw_connection.cursor()
+    try:
+        cur.execute(sql)
+    finally:
+        cur.close()
+
+
 def insert_request(table_number, request_type):
     table_number = str(table_number).replace("'", "''")
     request_type = str(request_type).replace("'", "''")
@@ -20,7 +28,7 @@ def insert_request(table_number, request_type):
         VALUES ('{table_number}', '{request_type}', 'WAITING', CURRENT_TIMESTAMP())
     """
 
-    conn.query(sql)
+    run_sql(sql)
 
 
 def update_request(request_id):
@@ -30,7 +38,7 @@ def update_request(request_id):
         WHERE REQUEST_ID = {int(request_id)}
     """
 
-    conn.query(sql)
+    run_sql(sql)
 
 
 if table_number:
