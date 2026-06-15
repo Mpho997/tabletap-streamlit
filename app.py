@@ -34,13 +34,6 @@ st.markdown("""
     border-radius: 10px;
     margin-top: 8px;
 }
-.kpi-card {
-    background-color: #0f172a;
-    padding: 18px;
-    border-radius: 14px;
-    border: 1px solid #334155;
-    margin-bottom: 15px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -89,10 +82,15 @@ def update_request(request_id):
 
 def format_time(seconds):
     if seconds is None:
-        return ""
+        return "Not completed"
+
+    if str(seconds) == "nan":
+        return "Not completed"
+
     seconds = int(seconds)
     minutes = seconds // 60
     remaining_seconds = seconds % 60
+
     return f"{minutes} min {remaining_seconds} sec"
 
 
@@ -138,29 +136,9 @@ else:
         ORDER BY CREATED_AT DESC
     """, ttl=0)
 
-    completed_df = conn.query("""
-        SELECT
-            REQUEST_ID,
-            TABLE_NUMBER,
-            REQUEST_TYPE,
-            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
-            TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST,
-            DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
-        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-        WHERE STATUS = 'COMPLETED'
-        ORDER BY COMPLETED_AT DESC
-        LIMIT 10
-    """, ttl=0)
-
     if df.empty:
         st.success("No waiting requests.")
     else:
-        st.components.v1.html("""
-        <audio autoplay>
-            <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-        </audio>
-        """, height=0)
-
         st.error(f"🔔 {len(df)} active request(s) waiting!")
 
         for _, row in df.iterrows():
@@ -193,6 +171,20 @@ else:
 
     st.subheader("Completed Requests")
 
+    completed_df = conn.query("""
+        SELECT
+            REQUEST_ID,
+            TABLE_NUMBER,
+            REQUEST_TYPE,
+            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
+            TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST,
+            DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
+        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+        WHERE STATUS = 'COMPLETED'
+        ORDER BY COMPLETED_AT DESC
+        LIMIT 10
+    """, ttl=0)
+
     if completed_df.empty:
         st.info("No completed requests yet.")
     else:
@@ -208,4 +200,4 @@ else:
             ]
         ]
 
-        st.dataframe(completed_df, use_container_width=True)
+        st.dataframe(completed_df, width="stretch")
