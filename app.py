@@ -70,21 +70,21 @@ def insert_request(table_number, request_type):
     run_sql(sql)
 
 
-def update_request(request_id):
+def update_request(request_id, waiter_name):
+    waiter_name = str(waiter_name).replace("'", "''")
+
     sql = f"""
         UPDATE RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         SET STATUS = 'COMPLETED',
-            COMPLETED_AT = CONVERT_TIMEZONE('Africa/Johannesburg', CURRENT_TIMESTAMP())::TIMESTAMP_NTZ
+            COMPLETED_AT = CONVERT_TIMEZONE('Africa/Johannesburg', CURRENT_TIMESTAMP())::TIMESTAMP_NTZ,
+            COMPLETED_BY = '{waiter_name}'
         WHERE REQUEST_ID = {int(request_id)}
     """
     run_sql(sql)
 
 
 def format_time(seconds):
-    if seconds is None:
-        return "Not completed"
-
-    if str(seconds) == "nan":
+    if seconds is None or str(seconds) == "nan":
         return "Not completed"
 
     seconds = int(seconds)
@@ -118,6 +118,8 @@ else:
     st.subheader("🔔 Live Waiter Dashboard")
 
     st_autorefresh(interval=5000, key="dashboard_refresh")
+
+    waiter_name = st.text_input("Waiter name completing requests:")
 
     df = conn.query("""
         SELECT
@@ -164,8 +166,11 @@ else:
             )
 
             if st.button(f"✅ Mark Completed - Request {row['REQUEST_ID']}"):
-                update_request(int(row["REQUEST_ID"]))
-                st.rerun()
+                if waiter_name.strip() == "":
+                    st.warning("Please enter the waiter name first.")
+                else:
+                    update_request(int(row["REQUEST_ID"]), waiter_name)
+                    st.rerun()
 
             st.divider()
 
@@ -176,6 +181,7 @@ else:
             REQUEST_ID,
             TABLE_NUMBER,
             REQUEST_TYPE,
+            COALESCE(COMPLETED_BY, 'Not captured') AS COMPLETED_BY,
             TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
             TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST,
             DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
@@ -194,6 +200,7 @@ else:
             [
                 "TABLE_NUMBER",
                 "REQUEST_TYPE",
+                "COMPLETED_BY",
                 "STARTED_AT_SAST",
                 "COMPLETED_AT_SAST",
                 "RESPONSE_TIME"
