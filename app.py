@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="TableTap", layout="centered")
 
@@ -103,10 +104,7 @@ def update_request(request_id, waiter_name):
 
 
 def format_time(seconds):
-    if seconds is None:
-        return "Not completed"
-
-    if str(seconds) == "nan":
+    if seconds is None or str(seconds) == "nan":
         return "Not completed"
 
     seconds = int(seconds)
@@ -114,6 +112,17 @@ def format_time(seconds):
     remaining_seconds = seconds % 60
 
     return f"{minutes} min {remaining_seconds} sec"
+
+
+def play_bell_sound():
+    components.html(
+        """
+        <audio autoplay loop>
+            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+        </audio>
+        """,
+        height=0
+    )
 
 
 if table_number:
@@ -138,6 +147,7 @@ if table_number:
 
 else:
     st.subheader("🔔 Live Waiter Dashboard")
+    st.info("Keep this dashboard open. Click anywhere on the page once to allow bell sound alerts.")
 
     st_autorefresh(
         interval=5000,
@@ -184,7 +194,9 @@ else:
     if waiting_df.empty:
         st.success("No waiting requests.")
     else:
-        st.error(f"🔔 {len(waiting_df)} active request(s) waiting!")
+        play_bell_sound()
+
+        st.error(f"🔔 {len(waiting_df)} active request(s) waiting! Bell will continue ringing until all waiting requests are completed.")
 
         for _, row in waiting_df.iterrows():
             waiting_time = format_time(row["SECONDS_WAITING"])
