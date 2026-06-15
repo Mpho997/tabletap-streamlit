@@ -34,6 +34,13 @@ st.markdown("""
     border-radius: 10px;
     margin-top: 8px;
 }
+.kpi-card {
+    background-color: #0f172a;
+    padding: 18px;
+    border-radius: 14px;
+    border: 1px solid #334155;
+    margin-bottom: 15px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,6 +87,15 @@ def update_request(request_id):
     run_sql(sql)
 
 
+def format_time(seconds):
+    if seconds is None:
+        return ""
+    seconds = int(seconds)
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+    return f"{minutes} min {remaining_seconds} sec"
+
+
 if table_number:
     st.subheader(f"Table {table_number}")
     st.write("How can we assist you?")
@@ -111,10 +127,7 @@ else:
             TABLE_NUMBER,
             REQUEST_TYPE,
             STATUS,
-            TO_CHAR(
-                CONVERT_TIMEZONE('Africa/Johannesburg', CREATED_AT::TIMESTAMP_TZ),
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS STARTED_AT_SAST,
+            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
             DATEDIFF(
                 'second',
                 CREATED_AT,
@@ -123,6 +136,20 @@ else:
         FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         WHERE STATUS = 'WAITING'
         ORDER BY CREATED_AT DESC
+    """, ttl=0)
+
+    completed_df = conn.query("""
+        SELECT
+            REQUEST_ID,
+            TABLE_NUMBER,
+            REQUEST_TYPE,
+            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
+            TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST,
+            DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
+        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+        WHERE STATUS = 'COMPLETED'
+        ORDER BY COMPLETED_AT DESC
+        LIMIT 10
     """, ttl=0)
 
     if df.empty:
@@ -137,9 +164,7 @@ else:
         st.error(f"🔔 {len(df)} active request(s) waiting!")
 
         for _, row in df.iterrows():
-            seconds = int(row["SECONDS_WAITING"])
-            minutes = seconds // 60
-            remaining_seconds = seconds % 60
+            waiting_time = format_time(row["SECONDS_WAITING"])
 
             st.markdown(
                 f"""
@@ -154,7 +179,7 @@ else:
                 f"""
                 <div class="timer-card">
                     Started at: {row['STARTED_AT_SAST']} SAST<br>
-                    Waiting time: {minutes} min {remaining_seconds} sec
+                    Waiting time: {waiting_time}
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -168,27 +193,19 @@ else:
 
     st.subheader("Completed Requests")
 
-    completed_df = conn.query("""
-        SELECT
-            REQUEST_ID,
-            TABLE_NUMBER,
-            REQUEST_TYPE,
-            TO_CHAR(
-                CONVERT_TIMEZONE('Africa/Johannesburg', CREATED_AT::TIMESTAMP_TZ),
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS STARTED_AT_SAST,
-            TO_CHAR(
-                CONVERT_TIMEZONE('Africa/Johannesburg', COMPLETED_AT::TIMESTAMP_TZ),
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS COMPLETED_AT_SAST,
-            DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
-        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-        WHERE STATUS = 'COMPLETED'
-        ORDER BY COMPLETED_AT DESC
-        LIMIT 10
-    """, ttl=0)
-
     if completed_df.empty:
         st.info("No completed requests yet.")
     else:
+        completed_df["RESPONSE_TIME"] = completed_df["RESPONSE_SECONDS"].apply(format_time)
+
+        completed_df = completed_df[
+            [
+                "TABLE_NUMBER",
+                "REQUEST_TYPE",
+                "STARTED_AT_SAST",
+                "COMPLETED_AT_SAST",
+                "RESPONSE_TIME"
+            ]
+        ]
+
         st.dataframe(completed_df, use_container_width=True)
