@@ -1,12 +1,30 @@
+import os
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import streamlit.components.v1 as components
+import snowflake.connector
 
 st.set_page_config(page_title="TableTap", layout="centered")
 
-conn = st.connection("snowflake")
-
 RESTAURANT_NAME = "The Grill House Sandton"
+
+
+@st.cache_resource
+def get_connection():
+    return snowflake.connector.connect(
+        account=os.environ["SNOWFLAKE_ACCOUNT"],
+        user=os.environ["SNOWFLAKE_USER"],
+        password=os.environ["SNOWFLAKE_PASSWORD"],
+        role=os.environ["SNOWFLAKE_ROLE"],
+        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
+        database=os.environ["SNOWFLAKE_DATABASE"],
+        schema=os.environ["SNOWFLAKE_SCHEMA"],
+        client_session_keep_alive=True
+    )
+
+
+conn = get_connection()
+
 
 st.markdown("""
 <style>
@@ -54,6 +72,7 @@ header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
+
 st.title("🍽️ TableTap")
 st.markdown(
     f"<div class='restaurant-name'>{RESTAURANT_NAME}</div>",
@@ -65,10 +84,20 @@ table_number = params.get("table", None)
 
 
 def run_sql(sql):
-    cur = conn.raw_connection.cursor()
+    cur = conn.cursor()
     try:
         cur.execute("ALTER SESSION SET TIMEZONE = 'Africa/Johannesburg'")
         cur.execute(sql)
+    finally:
+        cur.close()
+
+
+def query_df(sql):
+    cur = conn.cursor()
+    try:
+        cur.execute("ALTER SESSION SET TIMEZONE = 'Africa/Johannesburg'")
+        cur.execute(sql)
+        return cur.fetch_pandas_all()
     finally:
         cur.close()
 
@@ -184,10 +213,6 @@ def browser_notification(title, message):
     )
 
 
-# ==================================================
-# CUSTOMER VIEW
-# ==================================================
-
 if table_number:
 
     st.subheader(f"Table {table_number}")
@@ -222,10 +247,6 @@ if table_number:
             show_customer_error()
 
 
-# ==================================================
-# WAITER DASHBOARD
-# ==================================================
-
 else:
 
     st.subheader("🔔 Live Waiter Dashboard")
@@ -250,7 +271,7 @@ else:
     )
 
     try:
-        waiting_df = conn.query("""
+        waiting_df = query_df("""
             SELECT
                 REQUEST_ID,
                 TABLE_NUMBER,
@@ -271,7 +292,7 @@ else:
             FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
             WHERE STATUS = 'WAITING'
             ORDER BY CREATED_AT DESC
-        """, ttl=0)
+        """)
     except Exception:
         show_staff_error()
         st.stop()
@@ -331,7 +352,7 @@ else:
     st.subheader("Recent Completed Requests History")
 
     try:
-        completed_df = conn.query("""
+        completed_df = query_df("""
             SELECT
                 REQUEST_ID,
                 TABLE_NUMBER,
@@ -354,7 +375,7 @@ else:
             WHERE STATUS = 'COMPLETED'
             ORDER BY COALESCE(COMPLETED_AT, CREATED_AT) DESC
             LIMIT 10
-        """, ttl=0)
+        """)
     except Exception:
         show_staff_error()
         st.stop()
