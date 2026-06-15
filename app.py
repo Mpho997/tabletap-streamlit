@@ -10,16 +10,22 @@ RESTAURANT_NAME = "The Grill House Sandton"
 
 st.markdown("""
 <style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
 .stApp {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     color: white;
 }
+
 .restaurant-name {
     color: #cbd5e1;
     font-size: 24px;
     margin-top: -20px;
     margin-bottom: 30px;
 }
+
 .request-card {
     background-color: #f59e0b;
     color: #111827;
@@ -29,11 +35,21 @@ st.markdown("""
     font-weight: bold;
     margin-top: 15px;
 }
+
 .timer-card {
     background-color: #111827;
     padding: 12px;
     border-radius: 10px;
     margin-top: 8px;
+}
+
+.error-card {
+    background-color: #7f1d1d;
+    color: white;
+    padding: 25px;
+    border-radius: 14px;
+    text-align: center;
+    margin-top: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -80,6 +96,7 @@ def insert_request(table_number, request_type):
             )::TIMESTAMP_NTZ
         )
     """
+
     run_sql(sql)
 
 
@@ -98,6 +115,7 @@ def update_request(request_id, waiter_name):
                 )::TIMESTAMP_NTZ
         WHERE REQUEST_ID = {int(request_id)}
     """
+
     run_sql(sql)
 
 
@@ -110,6 +128,24 @@ def format_time(seconds):
     remaining_seconds = seconds % 60
 
     return f"{minutes} min {remaining_seconds} sec"
+
+
+def show_customer_error():
+    st.markdown(
+        f"""
+        <div class="error-card">
+            <h3>⚠️ Service Temporarily Unavailable</h3>
+            <p>{RESTAURANT_NAME}</p>
+            <p>Please notify a waiter directly.</p>
+            <p>We apologize for the inconvenience.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def show_staff_error():
+    st.error("Unable to connect to the service database. Please refresh the page or contact support.")
 
 
 def play_bell_sound():
@@ -148,27 +184,50 @@ def browser_notification(title, message):
     )
 
 
+# ==================================================
+# CUSTOMER VIEW
+# ==================================================
+
 if table_number:
+
     st.subheader(f"Table {table_number}")
     st.write("How can we assist you?")
 
     if st.button("🔔 Call Waiter"):
-        insert_request(table_number, "Call Waiter")
-        st.success("Waiter has been called.")
+        try:
+            insert_request(table_number, "Call Waiter")
+            st.success("Waiter has been called.")
+        except Exception:
+            show_customer_error()
 
     if st.button("💳 Request Bill"):
-        insert_request(table_number, "Request Bill")
-        st.success("Bill request sent.")
+        try:
+            insert_request(table_number, "Request Bill")
+            st.success("Bill request sent.")
+        except Exception:
+            show_customer_error()
 
     if st.button("🥤 Order Drinks"):
-        insert_request(table_number, "Order Drinks")
-        st.success("Drinks request sent.")
+        try:
+            insert_request(table_number, "Order Drinks")
+            st.success("Drinks request sent.")
+        except Exception:
+            show_customer_error()
 
     if st.button("🍽️ Request Menu"):
-        insert_request(table_number, "Request Menu")
-        st.success("Menu request sent.")
+        try:
+            insert_request(table_number, "Request Menu")
+            st.success("Menu request sent.")
+        except Exception:
+            show_customer_error()
+
+
+# ==================================================
+# WAITER DASHBOARD
+# ==================================================
 
 else:
+
     st.subheader("🔔 Live Waiter Dashboard")
 
     st_autorefresh(
@@ -190,28 +249,32 @@ else:
         ]
     )
 
-    waiting_df = conn.query("""
-        SELECT
-            REQUEST_ID,
-            TABLE_NUMBER,
-            REQUEST_TYPE,
-            STATUS,
-            TO_CHAR(
-                CREATED_AT,
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS STARTED_AT_SAST,
-            DATEDIFF(
-                'second',
-                CREATED_AT,
-                CONVERT_TIMEZONE(
-                    'Africa/Johannesburg',
-                    CURRENT_TIMESTAMP()
-                )::TIMESTAMP_NTZ
-            ) AS SECONDS_WAITING
-        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-        WHERE STATUS = 'WAITING'
-        ORDER BY CREATED_AT DESC
-    """, ttl=0)
+    try:
+        waiting_df = conn.query("""
+            SELECT
+                REQUEST_ID,
+                TABLE_NUMBER,
+                REQUEST_TYPE,
+                STATUS,
+                TO_CHAR(
+                    CREATED_AT,
+                    'YYYY-MM-DD HH24:MI:SS'
+                ) AS STARTED_AT_SAST,
+                DATEDIFF(
+                    'second',
+                    CREATED_AT,
+                    CONVERT_TIMEZONE(
+                        'Africa/Johannesburg',
+                        CURRENT_TIMESTAMP()
+                    )::TIMESTAMP_NTZ
+                ) AS SECONDS_WAITING
+            FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+            WHERE STATUS = 'WAITING'
+            ORDER BY CREATED_AT DESC
+        """, ttl=0)
+    except Exception:
+        show_staff_error()
+        st.stop()
 
     if waiting_df.empty:
         st.success("No waiting requests.")
@@ -231,6 +294,7 @@ else:
         )
 
         for _, row in waiting_df.iterrows():
+
             waiting_time = format_time(row["SECONDS_WAITING"])
 
             st.markdown(
@@ -253,40 +317,47 @@ else:
             )
 
             if st.button(f"✅ Mark Completed - Request {row['REQUEST_ID']}"):
-                update_request(
-                    int(row["REQUEST_ID"]),
-                    waiter_name
-                )
-                st.rerun()
+                try:
+                    update_request(
+                        int(row["REQUEST_ID"]),
+                        waiter_name
+                    )
+                    st.rerun()
+                except Exception:
+                    show_staff_error()
 
             st.divider()
 
     st.subheader("Recent Completed Requests History")
 
-    completed_df = conn.query("""
-        SELECT
-            REQUEST_ID,
-            TABLE_NUMBER,
-            REQUEST_TYPE,
-            COALESCE(COMPLETED_BY, 'Not captured') AS COMPLETED_BY,
-            TO_CHAR(
-                CREATED_AT,
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS STARTED_AT_SAST,
-            TO_CHAR(
-                COMPLETED_AT,
-                'YYYY-MM-DD HH24:MI:SS'
-            ) AS COMPLETED_AT_SAST,
-            DATEDIFF(
-                'second',
-                CREATED_AT,
-                COMPLETED_AT
-            ) AS RESPONSE_SECONDS
-        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-        WHERE STATUS = 'COMPLETED'
-        ORDER BY COALESCE(COMPLETED_AT, CREATED_AT) DESC
-        LIMIT 10
-    """, ttl=0)
+    try:
+        completed_df = conn.query("""
+            SELECT
+                REQUEST_ID,
+                TABLE_NUMBER,
+                REQUEST_TYPE,
+                COALESCE(COMPLETED_BY, 'Not captured') AS COMPLETED_BY,
+                TO_CHAR(
+                    CREATED_AT,
+                    'YYYY-MM-DD HH24:MI:SS'
+                ) AS STARTED_AT_SAST,
+                TO_CHAR(
+                    COMPLETED_AT,
+                    'YYYY-MM-DD HH24:MI:SS'
+                ) AS COMPLETED_AT_SAST,
+                DATEDIFF(
+                    'second',
+                    CREATED_AT,
+                    COMPLETED_AT
+                ) AS RESPONSE_SECONDS
+            FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+            WHERE STATUS = 'COMPLETED'
+            ORDER BY COALESCE(COMPLETED_AT, CREATED_AT) DESC
+            LIMIT 10
+        """, ttl=0)
+    except Exception:
+        show_staff_error()
+        st.stop()
 
     if completed_df.empty:
         st.info("No completed requests yet.")
