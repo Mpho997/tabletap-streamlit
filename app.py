@@ -13,14 +13,12 @@ st.markdown("""
     background: linear-gradient(135deg, #0f172a, #1e293b);
     color: white;
 }
-
 .restaurant-name {
     color: #cbd5e1;
     font-size: 24px;
     margin-top: -20px;
     margin-bottom: 30px;
 }
-
 .request-card {
     background-color: #f59e0b;
     color: #111827;
@@ -30,7 +28,6 @@ st.markdown("""
     font-weight: bold;
     margin-top: 15px;
 }
-
 .timer-card {
     background-color: #111827;
     padding: 12px;
@@ -60,7 +57,6 @@ def run_sql(sql):
 
 
 def insert_request(table_number, request_type):
-
     table_number = str(table_number).replace("'", "''")
     request_type = str(request_type).replace("'", "''")
 
@@ -88,7 +84,6 @@ def insert_request(table_number, request_type):
 
 
 def update_request(request_id, waiter_name):
-
     waiter_name = str(waiter_name).replace("'", "''")
 
     sql = f"""
@@ -108,7 +103,6 @@ def update_request(request_id, waiter_name):
 
 
 def format_time(seconds):
-
     if seconds is None:
         return "Not completed"
 
@@ -116,21 +110,14 @@ def format_time(seconds):
         return "Not completed"
 
     seconds = int(seconds)
-
     minutes = seconds // 60
     remaining_seconds = seconds % 60
 
     return f"{minutes} min {remaining_seconds} sec"
 
 
-# ==================================================
-# CUSTOMER VIEW
-# ==================================================
-
 if table_number:
-
     st.subheader(f"Table {table_number}")
-
     st.write("How can we assist you?")
 
     if st.button("🔔 Call Waiter"):
@@ -149,12 +136,7 @@ if table_number:
         insert_request(table_number, "Request Menu")
         st.success("Menu request sent.")
 
-# ==================================================
-# WAITER DASHBOARD
-# ==================================================
-
 else:
-
     st.subheader("🔔 Live Waiter Dashboard")
 
     st_autorefresh(
@@ -162,8 +144,18 @@ else:
         key="dashboard_refresh"
     )
 
-    waiter_name = st.text_input(
-        "Waiter name completing requests:"
+    waiter_name = st.selectbox(
+        "Select Waiter",
+        [
+            "Mpho",
+            "Paul",
+            "Eva",
+            "Seja",
+            "John",
+            "David",
+            "Sammuel",
+            "Anna"
+        ]
     )
 
     waiting_df = conn.query("""
@@ -176,7 +168,6 @@ else:
                 CREATED_AT,
                 'YYYY-MM-DD HH24:MI:SS'
             ) AS STARTED_AT_SAST,
-
             DATEDIFF(
                 'second',
                 CREATED_AT,
@@ -185,35 +176,23 @@ else:
                     CURRENT_TIMESTAMP()
                 )::TIMESTAMP_NTZ
             ) AS SECONDS_WAITING
-
         FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-
         WHERE STATUS = 'WAITING'
-
         ORDER BY CREATED_AT DESC
     """, ttl=0)
 
     if waiting_df.empty:
-
         st.success("No waiting requests.")
-
     else:
-
-        st.error(
-            f"🔔 {len(waiting_df)} active request(s) waiting!"
-        )
+        st.error(f"🔔 {len(waiting_df)} active request(s) waiting!")
 
         for _, row in waiting_df.iterrows():
-
-            waiting_time = format_time(
-                row["SECONDS_WAITING"]
-            )
+            waiting_time = format_time(row["SECONDS_WAITING"])
 
             st.markdown(
                 f"""
                 <div class="request-card">
-                🔔 Table {row['TABLE_NUMBER']}
-                - {row['REQUEST_TYPE']}
+                    🔔 Table {row['TABLE_NUMBER']} - {row['REQUEST_TYPE']}
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -222,95 +201,53 @@ else:
             st.markdown(
                 f"""
                 <div class="timer-card">
-                Started at:
-                {row['STARTED_AT_SAST']} SAST
-
-                <br><br>
-
-                Waiting Time:
-                {waiting_time}
+                    Started at: {row['STARTED_AT_SAST']} SAST<br>
+                    Waiting Time: {waiting_time}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            if st.button(
-                f"✅ Mark Completed - Request {row['REQUEST_ID']}"
-            ):
-
-                if waiter_name.strip() == "":
-
-                    st.warning(
-                        "Please enter waiter name first."
-                    )
-
-                else:
-
-                    update_request(
-                        int(row["REQUEST_ID"]),
-                        waiter_name
-                    )
-
-                    st.rerun()
+            if st.button(f"✅ Mark Completed - Request {row['REQUEST_ID']}"):
+                update_request(
+                    int(row["REQUEST_ID"]),
+                    waiter_name
+                )
+                st.rerun()
 
             st.divider()
 
-    # ======================================
-    # COMPLETED REQUESTS
-    # ======================================
-
-    st.subheader("Completed Requests")
+    st.subheader("Recent Completed Requests History")
 
     completed_df = conn.query("""
         SELECT
             REQUEST_ID,
             TABLE_NUMBER,
             REQUEST_TYPE,
-
-            COALESCE(
-                COMPLETED_BY,
-                'Not captured'
-            ) AS COMPLETED_BY,
-
+            COALESCE(COMPLETED_BY, 'Not captured') AS COMPLETED_BY,
             TO_CHAR(
                 CREATED_AT,
                 'YYYY-MM-DD HH24:MI:SS'
             ) AS STARTED_AT_SAST,
-
             TO_CHAR(
                 COMPLETED_AT,
                 'YYYY-MM-DD HH24:MI:SS'
             ) AS COMPLETED_AT_SAST,
-
             DATEDIFF(
                 'second',
                 CREATED_AT,
                 COMPLETED_AT
             ) AS RESPONSE_SECONDS
-
         FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-
         WHERE STATUS = 'COMPLETED'
-
-        ORDER BY
-            COALESCE(
-                COMPLETED_AT,
-                CREATED_AT
-            ) DESC
-
+        ORDER BY COALESCE(COMPLETED_AT, CREATED_AT) DESC
         LIMIT 10
     """, ttl=0)
 
     if completed_df.empty:
-
         st.info("No completed requests yet.")
-
     else:
-
-        completed_df["RESPONSE_TIME"] = (
-            completed_df["RESPONSE_SECONDS"]
-            .apply(format_time)
-        )
+        completed_df["RESPONSE_TIME"] = completed_df["RESPONSE_SECONDS"].apply(format_time)
 
         completed_df = completed_df[
             [
@@ -323,7 +260,4 @@ else:
             ]
         ]
 
-        st.dataframe(
-            completed_df,
-            use_container_width=True
-        )
+        st.dataframe(completed_df, width="stretch")
