@@ -80,7 +80,6 @@ def insert_request(table_number, request_type):
             )::TIMESTAMP_NTZ
         )
     """
-
     run_sql(sql)
 
 
@@ -99,7 +98,6 @@ def update_request(request_id, waiter_name):
                 )::TIMESTAMP_NTZ
         WHERE REQUEST_ID = {int(request_id)}
     """
-
     run_sql(sql)
 
 
@@ -120,6 +118,31 @@ def play_bell_sound():
         <audio autoplay loop>
             <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
         </audio>
+        """,
+        height=0
+    )
+
+
+def browser_notification(title, message):
+    safe_title = str(title).replace('"', '\\"').replace("'", "\\'")
+    safe_message = str(message).replace('"', '\\"').replace("'", "\\'")
+
+    components.html(
+        f"""
+        <script>
+        if ("Notification" in window) {{
+            if (Notification.permission === "default") {{
+                Notification.requestPermission();
+            }}
+
+            if (Notification.permission === "granted") {{
+                new Notification("{safe_title}", {{
+                    body: "{safe_message}",
+                    icon: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png"
+                }});
+            }}
+        }}
+        </script>
         """,
         height=0
     )
@@ -147,7 +170,6 @@ if table_number:
 
 else:
     st.subheader("🔔 Live Waiter Dashboard")
-    st.info("Keep this dashboard open. Click anywhere on the page once to allow bell sound alerts.")
 
     st_autorefresh(
         interval=5000,
@@ -196,7 +218,17 @@ else:
     else:
         play_bell_sound()
 
-        st.error(f"🔔 {len(waiting_df)} active request(s) waiting! Bell will continue ringing until all waiting requests are completed.")
+        first_request = waiting_df.iloc[0]
+
+        browser_notification(
+            "🔔 New TableTap Request",
+            f"Table {first_request['TABLE_NUMBER']} - {first_request['REQUEST_TYPE']}"
+        )
+
+        st.error(
+            f"🔔 {len(waiting_df)} active request(s) waiting! "
+            "Bell will continue ringing until all waiting requests are completed."
+        )
 
         for _, row in waiting_df.iterrows():
             waiting_time = format_time(row["SECONDS_WAITING"])
