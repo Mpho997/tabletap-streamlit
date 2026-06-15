@@ -11,25 +11,26 @@ table_number = params.get("table", None)
 
 
 def insert_request(table_number, request_type):
-    sql = """
+    table_number = str(table_number).replace("'", "''")
+    request_type = str(request_type).replace("'", "''")
+
+    sql = f"""
         INSERT INTO RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         (TABLE_NUMBER, REQUEST_TYPE, STATUS, CREATED_AT)
-        VALUES (%s, %s, 'WAITING', CURRENT_TIMESTAMP())
+        VALUES ('{table_number}', '{request_type}', 'WAITING', CURRENT_TIMESTAMP())
     """
 
-    with conn.raw_connection.cursor() as cur:
-        cur.execute(sql, (str(table_number), request_type))
+    conn.query(sql)
 
 
 def update_request(request_id):
-    sql = """
+    sql = f"""
         UPDATE RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         SET STATUS = 'COMPLETED'
-        WHERE REQUEST_ID = %s
+        WHERE REQUEST_ID = {int(request_id)}
     """
 
-    with conn.raw_connection.cursor() as cur:
-        cur.execute(sql, (request_id,))
+    conn.query(sql)
 
 
 if table_number:
