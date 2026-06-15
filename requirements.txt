@@ -1,4 +1,5 @@
-streamlit>=1.28
+streamlit
 snowflake-connector-python
 snowflake-snowpark-python
 streamlit-autorefresh
+pandas
