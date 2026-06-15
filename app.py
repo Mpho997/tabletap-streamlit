@@ -111,8 +111,15 @@ else:
             TABLE_NUMBER,
             REQUEST_TYPE,
             STATUS,
-            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT,
-            DATEDIFF('second', CREATED_AT, CONVERT_TIMEZONE('Africa/Johannesburg', CURRENT_TIMESTAMP())::TIMESTAMP_NTZ) AS SECONDS_WAITING
+            TO_CHAR(
+                CONVERT_TIMEZONE('Africa/Johannesburg', CREATED_AT::TIMESTAMP_TZ),
+                'YYYY-MM-DD HH24:MI:SS'
+            ) AS STARTED_AT_SAST,
+            DATEDIFF(
+                'second',
+                CREATED_AT,
+                CONVERT_TIMEZONE('Africa/Johannesburg', CURRENT_TIMESTAMP())::TIMESTAMP_NTZ
+            ) AS SECONDS_WAITING
         FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         WHERE STATUS = 'WAITING'
         ORDER BY CREATED_AT DESC
@@ -146,7 +153,7 @@ else:
             st.markdown(
                 f"""
                 <div class="timer-card">
-                    Started at: {row['STARTED_AT']} SAST<br>
+                    Started at: {row['STARTED_AT_SAST']} SAST<br>
                     Waiting time: {minutes} min {remaining_seconds} sec
                 </div>
                 """,
@@ -166,8 +173,14 @@ else:
             REQUEST_ID,
             TABLE_NUMBER,
             REQUEST_TYPE,
-            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT,
-            TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT,
+            TO_CHAR(
+                CONVERT_TIMEZONE('Africa/Johannesburg', CREATED_AT::TIMESTAMP_TZ),
+                'YYYY-MM-DD HH24:MI:SS'
+            ) AS STARTED_AT_SAST,
+            TO_CHAR(
+                CONVERT_TIMEZONE('Africa/Johannesburg', COMPLETED_AT::TIMESTAMP_TZ),
+                'YYYY-MM-DD HH24:MI:SS'
+            ) AS COMPLETED_AT_SAST,
             DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
         FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
         WHERE STATUS = 'COMPLETED'
