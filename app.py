@@ -180,60 +180,9 @@ def show_staff_error():
 def play_bell_sound():
     components.html(
         """
-        <script>
-        if (!window.tableTapBellStarted) {
-
-            window.tableTapBellStarted = true;
-
-            const AudioContext =
-                window.AudioContext ||
-                window.webkitAudioContext;
-
-            const audioCtx = new AudioContext();
-
-            function ringBell() {
-
-                const oscillator =
-                    audioCtx.createOscillator();
-
-                const gainNode =
-                    audioCtx.createGain();
-
-                oscillator.type = "square";
-
-                oscillator.frequency.setValueAtTime(
-                    900,
-                    audioCtx.currentTime
-                );
-
-                gainNode.gain.setValueAtTime(
-                    0.4,
-                    audioCtx.currentTime
-                );
-
-                gainNode.gain.exponentialRampToValueAtTime(
-                    0.01,
-                    audioCtx.currentTime + 0.4
-                );
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-
-                oscillator.start();
-
-                oscillator.stop(
-                    audioCtx.currentTime + 0.4
-                );
-            }
-
-            ringBell();
-
-            setInterval(
-                ringBell,
-                1200
-            );
-        }
-        </script>
+        <audio autoplay loop>
+            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+        </audio>
         """,
         height=0
     )
