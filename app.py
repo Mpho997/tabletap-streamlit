@@ -6,7 +6,7 @@ import snowflake.connector
 
 st.set_page_config(page_title="TableTap", layout="centered")
 
-RESTAURANT_NAME = "The Grill House Sandton"
+RESTAURANT_NAME = "The Grill House"
 
 
 @st.cache_resource
@@ -216,7 +216,7 @@ def browser_notification(title, message):
 if table_number:
 
     st.subheader(f"Table {table_number}")
-    st.write("How can we assist you?")
+    st.write("Welcome to the Grill House, how can we assist you?")
 
     if st.button("🔔 Call Waiter"):
         try:
