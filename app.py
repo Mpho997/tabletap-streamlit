@@ -181,7 +181,7 @@ def play_bell_sound():
     components.html(
         """
         <audio autoplay loop>
-            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+            <source src="https://actions.google.com/sounds/v1/foley/service_bell_ding.ogg" type="audio/ogg">
         </audio>
         """,
         height=0
