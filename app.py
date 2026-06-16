@@ -221,28 +221,28 @@ if table_number:
     if st.button("🔔 Call Waiter"):
         try:
             insert_request(table_number, "Call Waiter")
-            st.success("Waiter has been called.")
+            st.success("Thank you. A waiter has been notified and will assist you shortly.")
         except Exception:
             show_customer_error()
 
     if st.button("💳 Request Bill"):
         try:
             insert_request(table_number, "Request Bill")
-            st.success("Bill request sent.")
+            st.success("Thank you. Your bill request has been sent. A waiter will bring it shortly.")
         except Exception:
             show_customer_error()
 
     if st.button("🥤 Order Drinks"):
         try:
             insert_request(table_number, "Order Drinks")
-            st.success("Drinks request sent.")
+            st.success("Thank you. A waiter has been notified to assist you with drinks.")
         except Exception:
             show_customer_error()
 
     if st.button("🍽️ Request Menu"):
         try:
             insert_request(table_number, "Request Menu")
-            st.success("Menu request sent.")
+            st.success("Thank you. A waiter will bring the menu shortly.")
         except Exception:
             show_customer_error()
 
