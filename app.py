@@ -180,9 +180,34 @@ def show_staff_error():
 def play_bell_sound():
     components.html(
         """
-        <audio autoplay loop>
-            <source src="https://actions.google.com/sounds/v1/foley/service_bell_ding.ogg" type="audio/ogg">
-        </audio>
+        <script>
+        function startBell() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AudioContext();
+
+            function beep() {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = "square";
+                oscillator.frequency.setValueAtTime(900, audioCtx.currentTime);
+
+                gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.4);
+            }
+
+            beep();
+            setInterval(beep, 1200);
+        }
+
+        startBell();
+        </script>
         """,
         height=0
     )
