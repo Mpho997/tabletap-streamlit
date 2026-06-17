@@ -25,7 +25,6 @@ def get_connection():
 
 conn = get_connection()
 
-
 st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
@@ -90,12 +89,8 @@ header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-
 st.title("🍽️ TableTap")
-st.markdown(
-    f"<div class='restaurant-name'>{RESTAURANT_NAME}</div>",
-    unsafe_allow_html=True
-)
+st.markdown(f"<div class='restaurant-name'>{RESTAURANT_NAME}</div>", unsafe_allow_html=True)
 
 params = st.query_params
 table_number = params.get("table", None)
@@ -143,7 +138,6 @@ def insert_request(table_number, request_type):
             )::TIMESTAMP_NTZ
         )
     """
-
     run_sql(sql)
 
 
@@ -162,7 +156,6 @@ def acknowledge_request(request_id, waiter_name):
                 )::TIMESTAMP_NTZ
         WHERE REQUEST_ID = {int(request_id)}
     """
-
     run_sql(sql)
 
 
@@ -181,7 +174,6 @@ def complete_request(request_id, waiter_name):
                 )::TIMESTAMP_NTZ
         WHERE REQUEST_ID = {int(request_id)}
     """
-
     run_sql(sql)
 
 
@@ -318,10 +310,7 @@ def show_customer_latest_status(table_number):
 
 if table_number:
 
-    st_autorefresh(
-        interval=5000,
-        key=f"customer_refresh_{table_number}"
-    )
+    st_autorefresh(interval=5000, key=f"customer_refresh_{table_number}")
 
     st.subheader(f"Table {table_number}")
     st.write("Welcome to the Grill House, how can we assist you?")
@@ -368,10 +357,7 @@ else:
 
     st.subheader("🔔 Live Waiter Dashboard")
 
-    st_autorefresh(
-        interval=5000,
-        key="dashboard_refresh"
-    )
+    st_autorefresh(interval=5000, key="dashboard_refresh")
 
     waiter_name = st.selectbox(
         "Select Waiter",
@@ -421,6 +407,7 @@ else:
     if active_df.empty:
         st.success("No active requests.")
     else:
+
         if waiting_count > 0:
             play_bell_sound()
 
@@ -433,7 +420,7 @@ else:
 
             st.error(
                 f"🔔 {waiting_count} new request(s) waiting for acceptance! "
-                "Bell will continue ringing until all new requests are accepted."
+                "Bell will stop once the request is accepted."
             )
 
         for _, row in active_df.iterrows():
