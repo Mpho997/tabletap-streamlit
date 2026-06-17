@@ -54,11 +54,29 @@ header {visibility: hidden;}
     margin-top: 15px;
 }
 
+.ack-card {
+    background-color: #2563eb;
+    color: white;
+    padding: 18px;
+    border-radius: 14px;
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 15px;
+}
+
 .timer-card {
     background-color: #111827;
     padding: 12px;
     border-radius: 10px;
     margin-top: 8px;
+}
+
+.customer-status-card {
+    background-color: #164e63;
+    color: white;
+    padding: 18px;
+    border-radius: 14px;
+    margin-top: 25px;
 }
 
 .error-card {
@@ -129,7 +147,26 @@ def insert_request(table_number, request_type):
     run_sql(sql)
 
 
-def update_request(request_id, waiter_name):
+def acknowledge_request(request_id, waiter_name):
+    waiter_name = str(waiter_name).replace("'", "''")
+
+    sql = f"""
+        UPDATE RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+        SET
+            STATUS = 'ACKNOWLEDGED',
+            ACKNOWLEDGED_BY = '{waiter_name}',
+            ACKNOWLEDGED_AT =
+                CONVERT_TIMEZONE(
+                    'Africa/Johannesburg',
+                    CURRENT_TIMESTAMP()
+                )::TIMESTAMP_NTZ
+        WHERE REQUEST_ID = {int(request_id)}
+    """
+
+    run_sql(sql)
+
+
+def complete_request(request_id, waiter_name):
     waiter_name = str(waiter_name).replace("'", "''")
 
     sql = f"""
@@ -213,7 +250,78 @@ def browser_notification(title, message):
     )
 
 
+def show_customer_latest_status(table_number):
+    table_number = str(table_number).replace("'", "''")
+
+    latest_df = query_df(f"""
+        SELECT
+            REQUEST_ID,
+            TABLE_NUMBER,
+            REQUEST_TYPE,
+            STATUS,
+            ACKNOWLEDGED_BY,
+            COMPLETED_BY,
+            TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
+            TO_CHAR(ACKNOWLEDGED_AT, 'YYYY-MM-DD HH24:MI:SS') AS ACKNOWLEDGED_AT_SAST,
+            TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST
+        FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
+        WHERE TABLE_NUMBER = '{table_number}'
+        ORDER BY CREATED_AT DESC
+        LIMIT 1
+    """)
+
+    if latest_df.empty:
+        return
+
+    row = latest_df.iloc[0]
+    status = row["STATUS"]
+    request_type = row["REQUEST_TYPE"]
+
+    if status == "WAITING":
+        st.markdown(
+            f"""
+            <div class="customer-status-card">
+                <h3>🔔 Request Received</h3>
+                <p>Your <b>{request_type}</b> request has been sent to our team.</p>
+                <p>Please wait while a waiter accepts your request.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    elif status == "ACKNOWLEDGED":
+        waiter = row["ACKNOWLEDGED_BY"] or "A waiter"
+        st.markdown(
+            f"""
+            <div class="customer-status-card">
+                <h3>👋 Request Accepted</h3>
+                <p><b>{waiter}</b> has accepted your <b>{request_type}</b> request.</p>
+                <p>A waiter is on the way.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    elif status == "COMPLETED":
+        waiter = row["COMPLETED_BY"] or row["ACKNOWLEDGED_BY"] or "A waiter"
+        st.markdown(
+            f"""
+            <div class="customer-status-card">
+                <h3>✅ Request Completed</h3>
+                <p><b>{waiter}</b> assisted your table.</p>
+                <p>Thank you for dining with us.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
 if table_number:
+
+    st_autorefresh(
+        interval=5000,
+        key=f"customer_refresh_{table_number}"
+    )
 
     st.subheader(f"Table {table_number}")
     st.write("Welcome to the Grill House, how can we assist you?")
@@ -221,30 +329,39 @@ if table_number:
     if st.button("🔔 Call Waiter"):
         try:
             insert_request(table_number, "Call Waiter")
-            st.success("Thank you. A waiter has been notified and will assist you shortly.")
+            st.success("Thank you. Your request has been received. Please wait while a waiter accepts it.")
+            st.rerun()
         except Exception:
             show_customer_error()
 
     if st.button("💳 Request Bill"):
         try:
             insert_request(table_number, "Request Bill")
-            st.success("Thank you. Your bill request has been sent. A waiter will bring it shortly.")
+            st.success("Thank you. Your bill request has been received. Please wait while a waiter accepts it.")
+            st.rerun()
         except Exception:
             show_customer_error()
 
     if st.button("🥤 Order Drinks"):
         try:
             insert_request(table_number, "Order Drinks")
-            st.success("Thank you. A waiter has been notified to assist you with drinks.")
+            st.success("Thank you. Your drinks request has been received. Please wait while a waiter accepts it.")
+            st.rerun()
         except Exception:
             show_customer_error()
 
     if st.button("🍽️ Request Menu"):
         try:
             insert_request(table_number, "Request Menu")
-            st.success("Thank you. A waiter will bring the menu shortly.")
+            st.success("Thank you. Your menu request has been received. Please wait while a waiter accepts it.")
+            st.rerun()
         except Exception:
             show_customer_error()
+
+    try:
+        show_customer_latest_status(table_number)
+    except Exception:
+        show_customer_error()
 
 
 else:
@@ -271,16 +388,15 @@ else:
     )
 
     try:
-        waiting_df = query_df("""
+        active_df = query_df("""
             SELECT
                 REQUEST_ID,
                 TABLE_NUMBER,
                 REQUEST_TYPE,
                 STATUS,
-                TO_CHAR(
-                    CREATED_AT,
-                    'YYYY-MM-DD HH24:MI:SS'
-                ) AS STARTED_AT_SAST,
+                ACKNOWLEDGED_BY,
+                TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
+                TO_CHAR(ACKNOWLEDGED_AT, 'YYYY-MM-DD HH24:MI:SS') AS ACKNOWLEDGED_AT_SAST,
                 DATEDIFF(
                     'second',
                     CREATED_AT,
@@ -290,62 +406,104 @@ else:
                     )::TIMESTAMP_NTZ
                 ) AS SECONDS_WAITING
             FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
-            WHERE STATUS = 'WAITING'
+            WHERE STATUS IN ('WAITING', 'ACKNOWLEDGED')
             ORDER BY CREATED_AT DESC
         """)
     except Exception:
         show_staff_error()
         st.stop()
 
-    if waiting_df.empty:
-        st.success("No waiting requests.")
+    waiting_count = 0
+
+    if not active_df.empty:
+        waiting_count = len(active_df[active_df["STATUS"] == "WAITING"])
+
+    if active_df.empty:
+        st.success("No active requests.")
     else:
-        play_bell_sound()
+        if waiting_count > 0:
+            play_bell_sound()
 
-        first_request = waiting_df.iloc[0]
+            first_waiting = active_df[active_df["STATUS"] == "WAITING"].iloc[0]
 
-        browser_notification(
-            "🔔 New TableTap Request",
-            f"Table {first_request['TABLE_NUMBER']} - {first_request['REQUEST_TYPE']}"
-        )
+            browser_notification(
+                "🔔 New TableTap Request",
+                f"Table {first_waiting['TABLE_NUMBER']} - {first_waiting['REQUEST_TYPE']}"
+            )
 
-        st.error(
-            f"🔔 {len(waiting_df)} active request(s) waiting! "
-            "Bell will continue ringing until all waiting requests are completed."
-        )
+            st.error(
+                f"🔔 {waiting_count} new request(s) waiting for acceptance! "
+                "Bell will continue ringing until all new requests are accepted."
+            )
 
-        for _, row in waiting_df.iterrows():
+        for _, row in active_df.iterrows():
 
             waiting_time = format_time(row["SECONDS_WAITING"])
 
-            st.markdown(
-                f"""
-                <div class="request-card">
-                    🔔 Table {row['TABLE_NUMBER']} - {row['REQUEST_TYPE']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            if row["STATUS"] == "WAITING":
+                st.markdown(
+                    f"""
+                    <div class="request-card">
+                        🔔 Table {row['TABLE_NUMBER']} - {row['REQUEST_TYPE']}<br>
+                        Status: Waiting for acceptance
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            st.markdown(
-                f"""
-                <div class="timer-card">
-                    Started at: {row['STARTED_AT_SAST']} SAST<br>
-                    Waiting Time: {waiting_time}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                st.markdown(
+                    f"""
+                    <div class="timer-card">
+                        Started at: {row['STARTED_AT_SAST']} SAST<br>
+                        Waiting Time: {waiting_time}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            if st.button(f"✅ Mark Completed - Request {row['REQUEST_ID']}"):
-                try:
-                    update_request(
-                        int(row["REQUEST_ID"]),
-                        waiter_name
-                    )
-                    st.rerun()
-                except Exception:
-                    show_staff_error()
+                if st.button(f"👋 Accept Request - {row['REQUEST_ID']}"):
+                    try:
+                        acknowledge_request(
+                            int(row["REQUEST_ID"]),
+                            waiter_name
+                        )
+                        st.rerun()
+                    except Exception:
+                        show_staff_error()
+
+            elif row["STATUS"] == "ACKNOWLEDGED":
+                accepted_by = row["ACKNOWLEDGED_BY"] or "Not captured"
+
+                st.markdown(
+                    f"""
+                    <div class="ack-card">
+                        👋 Table {row['TABLE_NUMBER']} - {row['REQUEST_TYPE']}<br>
+                        Accepted by: {accepted_by}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                st.markdown(
+                    f"""
+                    <div class="timer-card">
+                        Started at: {row['STARTED_AT_SAST']} SAST<br>
+                        Accepted at: {row['ACKNOWLEDGED_AT_SAST']} SAST<br>
+                        Total Time Open: {waiting_time}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                if st.button(f"✅ Mark Completed - Request {row['REQUEST_ID']}"):
+                    try:
+                        complete_request(
+                            int(row["REQUEST_ID"]),
+                            waiter_name
+                        )
+                        st.rerun()
+                    except Exception:
+                        show_staff_error()
 
             st.divider()
 
@@ -357,20 +515,13 @@ else:
                 REQUEST_ID,
                 TABLE_NUMBER,
                 REQUEST_TYPE,
+                COALESCE(ACKNOWLEDGED_BY, 'Not captured') AS ACKNOWLEDGED_BY,
                 COALESCE(COMPLETED_BY, 'Not captured') AS COMPLETED_BY,
-                TO_CHAR(
-                    CREATED_AT,
-                    'YYYY-MM-DD HH24:MI:SS'
-                ) AS STARTED_AT_SAST,
-                TO_CHAR(
-                    COMPLETED_AT,
-                    'YYYY-MM-DD HH24:MI:SS'
-                ) AS COMPLETED_AT_SAST,
-                DATEDIFF(
-                    'second',
-                    CREATED_AT,
-                    COMPLETED_AT
-                ) AS RESPONSE_SECONDS
+                TO_CHAR(CREATED_AT, 'YYYY-MM-DD HH24:MI:SS') AS STARTED_AT_SAST,
+                TO_CHAR(ACKNOWLEDGED_AT, 'YYYY-MM-DD HH24:MI:SS') AS ACKNOWLEDGED_AT_SAST,
+                TO_CHAR(COMPLETED_AT, 'YYYY-MM-DD HH24:MI:SS') AS COMPLETED_AT_SAST,
+                DATEDIFF('second', CREATED_AT, ACKNOWLEDGED_AT) AS ACCEPT_SECONDS,
+                DATEDIFF('second', CREATED_AT, COMPLETED_AT) AS RESPONSE_SECONDS
             FROM RESTAURANT_APP.PUBLIC.WAITER_REQUESTS
             WHERE STATUS = 'COMPLETED'
             ORDER BY COALESCE(COMPLETED_AT, CREATED_AT) DESC
@@ -383,15 +534,19 @@ else:
     if completed_df.empty:
         st.info("No completed requests yet.")
     else:
+        completed_df["ACCEPT_TIME"] = completed_df["ACCEPT_SECONDS"].apply(format_time)
         completed_df["RESPONSE_TIME"] = completed_df["RESPONSE_SECONDS"].apply(format_time)
 
         completed_df = completed_df[
             [
                 "TABLE_NUMBER",
                 "REQUEST_TYPE",
+                "ACKNOWLEDGED_BY",
                 "COMPLETED_BY",
                 "STARTED_AT_SAST",
+                "ACKNOWLEDGED_AT_SAST",
                 "COMPLETED_AT_SAST",
+                "ACCEPT_TIME",
                 "RESPONSE_TIME"
             ]
         ]
